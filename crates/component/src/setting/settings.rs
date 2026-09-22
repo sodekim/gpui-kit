@@ -145,7 +145,7 @@ impl Settings {
         &self,
         state: &Entity<SettingsState>,
         filter: &SettingsFilter,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut App,
     ) -> impl IntoElement {
         let selected_index = state.read(cx).selected_index;
@@ -217,6 +217,9 @@ impl Settings {
                         })
                 })),
             )
+            .when_some(self.sidebar_footer.as_ref(), |this, footer| {
+                this.footer(footer(window, cx))
+            })
     }
 }
 

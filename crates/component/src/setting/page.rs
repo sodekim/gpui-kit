@@ -27,6 +27,7 @@ pub struct SettingPage {
     pub(super) title_suffix: Option<Rc<dyn Fn(&mut Window, &mut App) -> AnyElement>>,
     pub(super) description: Option<SharedString>,
     pub(super) groups: Vec<SettingGroup>,
+    pub(super) style: StyleRefinement,
     pub(super) header_style: StyleRefinement,
 }
 
@@ -40,6 +41,7 @@ impl SettingPage {
             title_suffix: None,
             description: None,
             groups: Vec::new(),
+            style: StyleRefinement::default(),
             header_style: StyleRefinement::default(),
         }
     }
@@ -99,6 +101,12 @@ impl SettingPage {
     /// Add multiple setting groups to the page.
     pub fn groups(mut self, groups: impl IntoIterator<Item = SettingGroup>) -> Self {
         self.groups.extend(groups);
+        self
+    }
+
+    /// Set the style refinement for the container
+    pub fn style(mut self, style: &StyleRefinement) -> Self {
+        self.style = style.clone();
         self
     }
 
@@ -177,6 +185,7 @@ impl SettingPage {
         v_flex()
             .id(ix)
             .size_full()
+            .refine_style(&self.style)
             .child(
                 v_flex()
                     .p_4()
