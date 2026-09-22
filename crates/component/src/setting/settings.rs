@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{ops::Range, rc::Rc};
 
 use crate::{
     IconName, Sizable, Size, StyledExt,
@@ -10,9 +10,9 @@ use crate::{
     sidebar::{Sidebar, SidebarMenu, SidebarMenuItem},
 };
 use gpui::{
-    App, AppContext as _, Axis, ElementId, Entity, IntoElement, ParentElement as _, Pixels,
-    RenderOnce, StyleRefinement, Styled, Window, container_query, div, prelude::FluentBuilder as _,
-    px, relative,
+    AnyElement, App, AppContext as _, Axis, ElementId, Entity, IntoElement, ParentElement as _,
+    Pixels, RenderOnce, StyleRefinement, Styled, Window, container_query, div,
+    prelude::FluentBuilder as _, px, relative,
 };
 use rust_i18n::t;
 
@@ -39,6 +39,7 @@ pub struct Settings {
     sidebar_width: Pixels,
     sidebar_size_range: Range<Pixels>,
     sidebar_style: StyleRefinement,
+    sidebar_footer: Option<Rc<dyn Fn(&mut Window, &mut App) -> AnyElement>>,
     default_selected_index: SelectIndex,
     header_style: StyleRefinement,
 }
@@ -54,6 +55,7 @@ impl Settings {
             sidebar_width: px(250.0),
             sidebar_size_range: px(160.0)..px(360.0),
             sidebar_style: StyleRefinement::default(),
+            sidebar_footer: None,
             default_selected_index: SelectIndex::default(),
             header_style: StyleRefinement::default(),
         }
@@ -68,6 +70,16 @@ impl Settings {
     /// Set the resize range of the sidebar, default is `160px..360px`.
     pub fn sidebar_size_range(mut self, range: impl Into<Range<Pixels>>) -> Self {
         self.sidebar_size_range = range.into();
+        self
+    }
+
+    /// Set the footer of the sidebar, default is `None`
+    pub fn sidebar_footer<E, F>(mut self, f: F) -> Self
+    where
+        F: Fn(&mut Window, &mut App) -> E + 'static,
+        E: IntoElement,
+    {
+        self.sidebar_footer = Some(Rc::new(move |window, cx| f(window, cx).into_any_element()));
         self
     }
 
