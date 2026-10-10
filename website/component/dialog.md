@@ -16,36 +16,9 @@ use gpui_kit::component::WindowExt;
 
 ## Usage
 
-### Setup application root view for display of dialogs
+### Where dialogs render
 
-You need to set up your application's root view to render the dialog layer. This is typically done in your main application struct's render method.
-
-The [Root::render_dialog_layer](https://docs.rs/gpui-component/latest/gpui_component/struct.Root.html#method.render_dialog_layer) function handles rendering any active dialogs on top of your app content.
-
-```rust
-use gpui_kit::component::TitleBar;
-
-struct MyApp {
-    view: AnyView,
-}
-
-impl Render for MyApp {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let dialog_layer = Root::render_dialog_layer(window, cx);
-
-        div()
-            .size_full()
-            .child(
-                v_flex()
-                    .size_full()
-                    .child(TitleBar::new())
-                    .child(div().flex_1().overflow_hidden().child(self.view.clone())),
-            )
-            // Render the dialog layer on top of the app content
-            .children(dialog_layer)
-    }
-}
-```
+The window's [Root](./root.md) automatically mounts and renders dialogs. Open the window with `gpui_kit::open_window`, or wrap the application view in `Root::new`. Application views do not render overlay layers themselves.
 
 ### Basic Dialog
 
@@ -55,6 +28,34 @@ window.open_dialog(cx, |dialog, _, _| {
         .title("Welcome")
         .child("This is a dialog dialog.")
 })
+```
+
+### Builder lifetime and initial focus
+
+The `open_dialog` builder may run again when the dialog layer is rebuilt; it
+is not a one-shot constructor or a callback guaranteed to run on every displayed
+frame. The same contract applies to `open_alert_dialog`, `open_sheet`, and
+`open_sheet_at`. Keep builders cheap and idempotent. Create persistent entities
+before opening and capture their handles, so rebuilding preserves editing state.
+
+`open_dialog` initially focuses the dialog shell. To focus its content, use a
+one-time guard inside the builder, created separately for each opening.
+Unconditionally focusing on every rebuild steals focus from other controls or
+nested dialogs.
+
+```rust
+use std::cell::Cell;
+use gpui_kit::{AppContext as _, Focusable as _};
+use gpui_kit::component::{WindowExt as _, input::{Input, InputState}};
+
+let input = cx.new(|cx| InputState::new(window, cx).placeholder("URL"));
+let initial_focus = Cell::new(true);
+window.open_dialog(cx, move |dialog, window, cx| {
+    if initial_focus.replace(false) {
+        input.focus_handle(cx).focus(window, cx);
+    }
+    dialog.title("Import").child(Input::new(&input))
+});
 ```
 
 ### Form Dialog
@@ -137,6 +138,26 @@ window.open_dialog(cx, |dialog, _, _| {
         .child("Dialog content")
 })
 ```
+
+### Entrance animation
+
+`Dialog` and `AlertDialog` share `DialogEntrance`. The default `SlideDown`
+preserves the existing slide from the window top. `Fade` fades at the final
+position; `FadeSlide` fades while moving down by the theme's short motion
+distance; `None` immediately displays both the surface and backdrop.
+
+```rust
+use gpui_kit::component::dialog::DialogEntrance;
+
+window.open_dialog(cx, |dialog, _, _| {
+    dialog.title("Settings").entrance(DialogEntrance::FadeSlide)
+});
+```
+
+`Fade` and `FadeSlide` use the theme's normal duration and enter easing.
+`FadeSlide` applies travel after resolving window boundaries and limits it to
+available space above the surface. Reduced motion displays every entrance at
+rest immediately. Closing remains immediate for every option.
 
 ### Action Buttons
 
@@ -447,6 +468,7 @@ window.open_dialog(cx, |dialog, _, _| {
 | `w(px)` / `width(px)`    | Set dialog width                                      |
 | `max_w(px)`              | Set maximum width                                     |
 | `margin_top(px)`         | Set top margin                                        |
+| `entrance(DialogEntrance)` | Set entrance animation (default: `SlideDown`)       |
 | `overlay(bool)`          | Show/hide overlay (default: true)                     |
 | `overlay_closable(bool)` | Allow closing by clicking overlay (default: true)     |
 | `keyboard(bool)`         | Allow closing with ESC key (default: true)            |

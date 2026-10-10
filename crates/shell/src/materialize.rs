@@ -136,6 +136,7 @@ use gpui_base::{
 };
 
 mod components;
+mod text_view;
 
 use crate::{
     capability::is_openable_url,
@@ -336,6 +337,7 @@ struct Behavior {
     on_change: Option<CallbackId>,
     token: Option<CallbackId>,
     on_token_click: Option<CallbackId>,
+    on_token_hover: Option<CallbackId>,
     on_mouse_move: Option<CallbackId>,
     on_hover: Option<CallbackId>,
     /// Reports a key press that reached this element.
@@ -827,6 +829,7 @@ fn materialize_node(
             snapshot,
             arena,
             node,
+            element_id(id, behavior.key.clone()),
             component,
             inherited,
             Box::new(RegisteredMaterializeParts {
@@ -868,6 +871,7 @@ fn materialize_registered_component(
     snapshot: Option<&RenderSnapshot>,
     arena: &SpecArena,
     node: &SpecNode,
+    identity: gpui::ElementId,
     component: crate::spec::RegisteredComponentSpec,
     inherited: gpui::Hsla,
     parts: Box<RegisteredMaterializeParts>,
@@ -941,6 +945,7 @@ fn materialize_registered_component(
     let mut request =
         crate::MaterializeRequest::new(crate::component_registry::MaterializeRequestInit {
             component_name: component.name(),
+            element_id: identity,
             payload: component.payload(),
             operations: node.ops(),
             runtime,
@@ -1056,10 +1061,10 @@ fn materialize_component(
                 cx,
             )
         }
-        Component::TextView { id, text, format } => {
-            let mut view = match format {
-                crate::spec::TextViewFormat::Html => TextView::html(id, text),
-                crate::spec::TextViewFormat::Markdown => TextView::markdown(id, text),
+        Component::TextView(spec) => {
+            let mut view = match spec.format {
+                crate::spec::TextViewFormat::Html => TextView::html(spec.id, spec.text),
+                crate::spec::TextViewFormat::Markdown => TextView::markdown(spec.id, spec.text),
             }
             .style(TextViewStyle::from_theme(&Theme::global(cx)));
             if let Some(selectable) = behavior.selectable {
@@ -1092,7 +1097,7 @@ fn materialize_component(
                 });
             }
             Styled::style(&mut view).refine(&refinement);
-            view.into_any_element()
+            text_view::with_policy(view, spec.policy).into_any_element()
         }
         Component::Text(value) => {
             // A text run, not a `div` holding one. GPUI implements
@@ -1509,12 +1514,23 @@ fn materialize_component(
                 behavior
                     .on_token_click
                     .map(|id| crate::ComponentCallback::from_runtime(runtime, id)),
+            )
+            .with_hover(
+                &state,
+                behavior
+                    .on_token_hover
+                    .map(|id| crate::ComponentCallback::from_runtime(runtime, id)),
             );
-            let input = callbacks.apply(
-                Input::new(&state),
-                |input, render| input.token(move |token, window, cx| render(token, window, cx)),
+            let input = callbacks.apply_hover(
+                callbacks.apply(
+                    Input::new(&state),
+                    |input, render| input.token(move |token, window, cx| render(token, window, cx)),
+                    |input, listen| {
+                        input.on_token_click(move |event, window, cx| listen(event, window, cx))
+                    },
+                ),
                 |input, listen| {
-                    input.on_token_click(move |event, window, cx| listen(event, window, cx))
+                    input.on_token_hover(move |event, window, cx| listen(event, window, cx))
                 },
             );
             frame.child(input).into_any_element()
@@ -2514,6 +2530,7 @@ pub(in crate::materialize) fn resolve_ops(
                 "on_change" => behavior.on_change = Some(*id),
                 "token" => behavior.token = Some(*id),
                 "on_token_click" => behavior.on_token_click = Some(*id),
+                "on_token_hover" => behavior.on_token_hover = Some(*id),
                 "on_step" => behavior.on_step = Some(*id),
                 "on_open_change" => behavior.on_open_change = Some(*id),
                 "on_confirm" => behavior.on_confirm = Some(*id),

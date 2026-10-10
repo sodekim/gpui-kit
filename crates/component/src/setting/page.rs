@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use gpui::{
-    AnyElement, App, Entity, InteractiveElement as _, IntoElement, ListAlignment, ListState,
-    ParentElement as _, SharedString, StyleRefinement, Styled, Window, div, list,
+    AnyElement, App, Entity, InteractiveElement as _, IntoElement, ListAlignment, ListOffset,
+    ListState, ParentElement as _, SharedString, StyleRefinement, Styled, Window, div, list,
     prelude::FluentBuilder as _, px,
 };
 use rust_i18n::t;
@@ -179,7 +179,12 @@ impl SettingPage {
         if let Some(group_ix) = scroll_group_ix
             && let Some(visible_ix) = group_indices.iter().position(|&ix| ix == group_ix)
         {
-            list_state.scroll_to_reveal_item(visible_ix);
+            // Scroll by index: after a page switch the list is rebuilt unmeasured,
+            // and `scroll_to_reveal_item` would resolve to the top.
+            list_state.scroll_to(ListOffset {
+                item_ix: visible_ix,
+                offset_in_item: px(0.),
+            });
         }
 
         v_flex()
@@ -231,7 +236,6 @@ impl SettingPage {
             )
             .child(
                 div()
-                    .px_4()
                     .relative()
                     .flex_1()
                     .w_full()
@@ -241,14 +245,17 @@ impl SettingPage {
                             let options = *options;
                             move |visible_ix, window, cx| {
                                 let (group_ix, group) = groups[visible_ix].clone();
-                                group
-                                    .py_4()
-                                    .render(
+                                // Keep horizontal padding inside the list's clip bounds
+                                // so focus rings can extend beyond the group's edges.
+                                div()
+                                    .w_full()
+                                    .px_4()
+                                    .child(group.py_4().render(
                                         &query,
                                         &options.with_page_ix(ix).with_group_ix(group_ix),
                                         window,
                                         cx,
-                                    )
+                                    ))
                                     .into_any_element()
                             }
                         })

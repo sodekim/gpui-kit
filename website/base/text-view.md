@@ -34,7 +34,7 @@ impl Render for AppView {
 }
 ```
 
-If the application already calls `gpui_kit::component::init`, Base initialization is included. `gpui-component::Root` also installs the window selection layer.
+If the application already calls `gpui_kit::component::init`, Base initialization is included. A window using `gpui_base::Root`—including one opened by `gpui_kit::open_window`—installs the selection layer automatically; do not render a second layer in its content.
 
 TextView is selectable by default. While dragging a selection near a viewport edge, the shared selection layer scrolls the related `overflow_*_scroll` region automatically; no TextView scroll or selection parameter is required. Use `.selectable(false)` only to disable selection explicitly.
 
@@ -73,7 +73,39 @@ let style = TextViewStyle::default()
 TextView::markdown("themed", source).style(style)
 ```
 
+Heading refinements receive the Markdown heading level (1-6) and are applied
+on top of the built-in size, weight, and spacing for that level:
+
+```rust
+use gpui_kit::{StyleRefinement, Styled as _, rems};
+
+let style = TextViewStyle::default().with_heading(|level| match level {
+    1 => StyleRefinement::default().pt(rems(1.)).pb(rems(0.75)),
+    _ => StyleRefinement::default(),
+});
+```
+
 `TextViewStyle::from_theme(&theme)` maps the semantic colors from a `gpui_kit::base::Theme`. Applications using the higher-level component theme can use `gpui_kit::component::text::text_view_style(cx.theme())`.
+
+A text view without an explicit `.style()` can follow the text color its
+container sets, so rich text stays readable on a filled surface such as a chat
+bubble. Turn it on in the application defaults:
+
+```rust
+use gpui_kit::base::{TextViewDefaults, TextViewStyle};
+
+TextViewDefaults::new()
+    .with_style(TextViewStyle::default())
+    .with_inherit_text_color(true)
+    .install(cx);
+```
+
+The body text takes the inherited color. When that color is far from the
+style's foreground in lightness, the surface is inverted from the page, so
+links, muted text, code and table backgrounds, borders and selection are derived
+from it too, and the installed syntax highlighter is left out. Enable this only
+when every window sets a text color at its root; GPUI Component's Root does,
+and Component turns it on.
 
 ## Syntax highlighting is opt-in
 
@@ -233,6 +265,17 @@ append, and Markdown that completes as it streams (`**bo` becoming bold
 blocks the update reaches are compared, and frames are requested only while
 something is still fading. Reduced motion skips the fade.
 
+`TextViewState::set_range_highlights` paints backgrounds behind ranges of
+`rendered_text()`, the text plain copy produces, so an application can show
+its search results or citations without reparsing or restyling the document.
+The ranges are painted, not shaped, so they never change layout.
+Ranges of the Markdown source, such as those `selected_source_range()`
+returns, convert to it with `rendered_text().range_for_source(range)`.
+`reveal_range` scrolls the line a range starts on into view, through the
+view's own list, an enclosing `gpui::list`, or `TextView::on_reveal` for any
+other container; see [Highlight ranges](../component/text-view.md#highlight-ranges)
+and [Scroll to a range](../component/text-view.md#scroll-to-a-range).
+
 Selection can copy rendered text or Markdown source through `SelectionFormat`. Link routing, code-block actions, table actions, images, and custom Markdown plugins use the same builders as the compatibility API documented on the [gpui-component TextView page](../component/text-view.md).
 
 ## Runnable source
@@ -244,3 +287,7 @@ The live preview and native command use the same Base-only source:
 ```bash
 cargo run -p gpui-base-examples -- text-view
 ```
+
+## Selection across presentation changes
+
+Completed selections retain their logical text range and Copy payload when styles, syntax highlighting, inherited fonts, or width change. Current presentation and wrapping still apply. Moving the mounted view does not reinterpret the old pointer rectangle. A new selection gesture or explicit clear updates the selection normally. Replacing the source or Markdown parser configuration clears the selection. The owning view must keep the state and selection participant mounted; this behavior does not pin rows in an outer virtual list.

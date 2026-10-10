@@ -4,8 +4,20 @@ One dependency for building desktop applications with GPUI:
 
 ```toml
 [dependencies]
-gpui-kit = "0.6"
+gpui-kit = "0.7"
 ```
+
+Enable the optional GPUI Fast backend without changing application imports:
+
+```toml
+[dependencies]
+gpui-kit = { version = "0.7", features = ["gpui-fast"] }
+```
+
+This selects GPUI Fast 0.1.x for the core, platforms, and every enabled Kit layer.
+`gpui_kit::*`, selective macro imports, and `#[gpui_kit::test]` keep working;
+no `[patch]` or `extern crate` alias is needed. Cargo features are additive, so
+upstream packages remain build dependencies while Kit exposes only Fast types.
 
 `gpui-kit` depends on the matching set of GPUI crates, so an application
 never lists GPUI itself. `use gpui_kit::*;` is GPUI, and each layer is
@@ -24,7 +36,6 @@ initializes the enabled layers:
 
 ```rust
 use gpui_kit::component::button::*;
-use gpui_kit::component::Root;
 use gpui_kit::*;
 
 struct Hello;
@@ -38,14 +49,8 @@ impl Render for Hello {
 fn main() {
     gpui_kit::application().run(|cx| {
         gpui_kit::init(cx);
-        cx.spawn(async move |cx| {
-            cx.open_window(WindowOptions::default(), |window, cx| {
-                let view = cx.new(|_| Hello);
-                cx.new(|cx| Root::new(view, window, cx))
-            })
+        gpui_kit::open_window(WindowOptions::default(), cx, |_, cx| cx.new(|_| Hello))
             .expect("failed to open window");
-        })
-        .detach();
     });
 }
 ```

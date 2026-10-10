@@ -342,6 +342,25 @@
     },
     {
       "source": "ui",
+      "name": "diff",
+      "classification": "component",
+      "registration": {
+        "status": "registered",
+        "descriptor": "Diff",
+        "exports": [
+          "Diff"
+        ],
+        "states": [
+          {
+            "export": "DiffState",
+            "kind": "DiffState",
+            "role": "retained-patch-state"
+          }
+        ]
+      }
+    },
+    {
+      "source": "ui",
       "name": "dock",
       "classification": "infrastructure",
       "explanation": "Dock is an application layout subsystem already exposed directly by gpui-shell; it is not a singular gpui-component constructor."
@@ -954,6 +973,12 @@
     },
     {
       "source": "ui",
+      "name": "speech",
+      "classification": "infrastructure",
+      "explanation": "Speech input depends on an application-supplied SpeechRecognizer or the `speech` feature's microphone and system recognizer, which the frozen catalog cannot construct from script; it is not registered as a component yet."
+    },
+    {
+      "source": "ui",
       "name": "spinner",
       "classification": "component",
       "registration": {
@@ -1123,6 +1148,18 @@
       "name": "theme",
       "classification": "infrastructure",
       "explanation": "Non-renderable theme infrastructure is consumed by registered controls."
+    },
+    {
+      "source": "ui",
+      "name": "toolbar",
+      "classification": "component",
+      "registration": {
+        "status": "registered",
+        "descriptor": "Toolbar",
+        "exports": [
+          "Toolbar"
+        ]
+      }
     },
     {
       "source": "ui",
@@ -1556,6 +1593,25 @@
         "descriptor": "Dialog",
         "exports": [
           "Dialog"
+        ]
+      }
+    },
+    {
+      "source": "story",
+      "name": "diff",
+      "classification": "component",
+      "registration": {
+        "status": "registered",
+        "descriptor": "Diff",
+        "exports": [
+          "Diff"
+        ],
+        "states": [
+          {
+            "export": "DiffState",
+            "kind": "DiffState",
+            "role": "retained-patch-state"
+          }
         ]
       }
     },
@@ -2262,6 +2318,12 @@
     },
     {
       "source": "story",
+      "name": "speech",
+      "classification": "infrastructure",
+      "explanation": "The Speech story drives a Rust SpeechRecognizer and the `speech` feature's platform services rather than a catalog constructor."
+    },
+    {
+      "source": "story",
       "name": "spinner",
       "classification": "component",
       "registration": {
@@ -2442,6 +2504,25 @@
     },
     {
       "source": "story",
+      "name": "time_field",
+      "classification": "component",
+      "registration": {
+        "status": "registered",
+        "descriptor": "TimeField",
+        "exports": [
+          "TimeField"
+        ],
+        "states": [
+          {
+            "export": "TimeFieldState",
+            "kind": "TimeFieldState",
+            "role": "retained-control-state"
+          }
+        ]
+      }
+    },
+    {
+      "source": "story",
       "name": "toggle",
       "classification": "component",
       "registration": {
@@ -2449,6 +2530,18 @@
         "descriptor": "Toggle",
         "exports": [
           "Toggle"
+        ]
+      }
+    },
+    {
+      "source": "story",
+      "name": "toolbar",
+      "classification": "component",
+      "registration": {
+        "status": "registered",
+        "descriptor": "Toolbar",
+        "exports": [
+          "Toolbar"
         ]
       }
     },

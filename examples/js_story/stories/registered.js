@@ -44,6 +44,8 @@ import {
   DescriptionItem,
   DescriptionList,
   Dialog,
+  Diff,
+  DiffState,
   DropdownButton,
   DropdownMenu,
   Editor,
@@ -141,10 +143,13 @@ import {
   Text,
   Textarea,
   TextareaState,
+  TimeField,
+  TimeFieldState,
   Stepper,
   StepperItem,
   SuccessAlert,
   Toggle,
+  Toolbar,
   Tooltip,
   Tree,
   WarningAlert,
@@ -158,6 +163,18 @@ import {
  * @param {unknown} value
  * @returns {import("gpui-kit").Element}
  */
+const REVIEW_PATCH = [
+  "diff --git a/src/retry.rs b/src/retry.rs",
+  "--- a/src/retry.rs",
+  "+++ b/src/retry.rs",
+  "@@ -1,3 +1,3 @@",
+  " fn retry_delay(attempt: u32) -> u64 {",
+  "-    100 * attempt as u64",
+  "+    100 * 2_u64.pow(attempt.min(6))",
+  " }",
+  "",
+].join("\n");
+
 const asElement = (value) =>
   /** @type {import("gpui-kit").Element} */ (/** @type {unknown} */ (value));
 
@@ -271,6 +288,8 @@ export function initializeRegisteredExamples() {
   retained("slider-disabled", () => SliderState(24));
   retained("color-picker", () => ColorPickerState());
   retained("date-picker", () => DatePickerState());
+  retained("time-field", () => TimeFieldState());
+  retained("time-field-disabled", () => TimeFieldState());
   retained("calendar-one", () => CalendarState());
   retained("calendar-two", () => CalendarState());
   retained("carousel-basic", () => CarouselState(3));
@@ -290,6 +309,7 @@ export function initializeRegisteredExamples() {
     EditorState("fn main() {\n    println!(\"hello\");\n}", "rust"),
   );
   retained("editor-readonly", () => EditorState("// generated, do not edit", "rust"));
+  retained("diff-review", () => DiffState(REVIEW_PATCH));
 }
 
 /**
@@ -1322,6 +1342,19 @@ export function registeredExamples(surface, cx) {
           element: asElement(new OtpInput(retained("otp-four", () => OtpState(4)))),
         },
       ];
+    case "TimeField":
+      return [
+        {
+          label: "Hours and minutes",
+          element: asElement(new TimeField(retained("time-field", () => TimeFieldState()))),
+        },
+        {
+          label: "Disabled",
+          element: asElement(
+            new TimeField(retained("time-field-disabled", () => TimeFieldState())).disabled(true),
+          ),
+        },
+      ];
     case "Textarea":
       return [
         {
@@ -1850,6 +1883,54 @@ export function registeredExamples(surface, cx) {
               .right_content(asElement(new Button("status-position").ghost().size("xsmall").label("Ln 12, Col 34")))
               .right_content(asElement(new VerticalSeparator().h(14)))
               .right_content(asElement(new Button("status-language").ghost().size("xsmall").label("JavaScript"))),
+          ),
+        },
+      ];
+    case "Toolbar":
+      return [
+        {
+          label: "Document toolbar",
+          description: "Leading file and history commands, a centered document name, and trailing utilities.",
+          element: asElement(
+            div()
+              .w_full()
+              .border(1)
+              .child(
+                asElement(
+                  new Toolbar("document-toolbar")
+                    .w_full()
+                    .child(asElement(new Button("toolbar-new").ghost().compact().size("small").label("New")))
+                    .child(asElement(new Button("toolbar-open").ghost().compact().size("small").label("Open")))
+                    .child(asElement(new VerticalSeparator().h(20)))
+                    .child(asElement(new Button("toolbar-undo").ghost().compact().size("small").label("Undo")))
+                    .child(asElement(new Button("toolbar-redo").ghost().compact().size("small").label("Redo")))
+                    .child(asElement(div().flex_1()))
+                    .child(asElement(new Text("Quarterly report")))
+                    .child(asElement(div().flex_1()))
+                    .child(asElement(new Button("toolbar-find").ghost().compact().size("small").label("Find")))
+                    .child(asElement(new Button("toolbar-more").ghost().compact().size("small").label("More"))),
+                ),
+              ),
+          ),
+        },
+        {
+          label: "Table toolbar",
+          description: "A compact table header with status content and trailing data commands.",
+          element: asElement(
+            div()
+              .w_full()
+              .border(1)
+              .child(
+                asElement(
+                  new Toolbar("table-toolbar")
+                    .w_full()
+                    .child(asElement(new Text("Open orders · 24")))
+                    .child(asElement(div().flex_1()))
+                    .child(asElement(new Button("toolbar-export-orders").ghost().compact().size("small").label("Export…")))
+                    .child(asElement(new Button("toolbar-refresh-orders").ghost().compact().size("small").label("Refresh")))
+                    .child(asElement(new Button("toolbar-columns").ghost().compact().size("small").label("Columns"))),
+                ),
+              ),
           ),
         },
       ];
@@ -2893,6 +2974,17 @@ export function registeredExamples(surface, cx) {
                   ),
               ),
             ),
+        },
+      ];
+    case "Diff":
+      return [
+        {
+          label: "Unified patch",
+          element: asElement(
+            new Diff(retained("diff-review", () => DiffState(REVIEW_PATCH)))
+              .w_full()
+              .h(220),
+          ),
         },
       ];
     case "Editor":

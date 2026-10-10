@@ -104,7 +104,7 @@ Bubble 的普通 variant 最大宽度为可用宽度的 80%，`Ghost` variant �
 | `Muted` | 低强调度的普通内容。 | `muted` 与普通前景色。 |
 | `Tinted` | 轻微使用 primary 色调的内容。 | 由主题背景与 primary 混合。 |
 | `Outline` | 需要清晰边界但不需要填充色的内容。 | 背景色与 `border`。 |
-| `Ghost` | 作为消息布局中的无表面富内容。 | 无 padding、边框和背景。 |
+| `Ghost` | 作为消息布局中的无表面富内容。 | 无 padding、边框和背景，也不裁切子元素（没有表面可裁，裁了只会切掉富内容的阴影与探出的控件）。 |
 | `Destructive` | 失败、拒绝或无效结果。 | 语义 destructive 色。 |
 
 ```rust
@@ -157,6 +157,8 @@ Bubble::new()
         ),
     )
 ```
+
+`TextView` 子元素会跟随样式变体的文字颜色，`Filled` 的 `primary` 底色上的链接、代码和表格也一样，所以 Markdown 回复不需要按变体单独设置样式。
 
 较长文本仍由调用方决定换行、截断和最小宽度。可将 `min_w_0()`、`max_w_full()` 等 refinement 放在富内容的内部容器上，使内容不会把消息行撑开。
 

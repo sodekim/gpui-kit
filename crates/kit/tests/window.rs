@@ -1,5 +1,6 @@
-use gpui::{AppContext, Context, TestAppContext, Window, div, prelude::*, px, size};
+mod common;
 use gpui_kit::test::{TestSupportExt, TestWindowExt};
+use gpui_kit::{AppContext, Context, TestAppContext, Window, div, prelude::*, px, size};
 
 struct Example {
     open: bool,
@@ -35,9 +36,9 @@ impl Render for Example {
     }
 }
 
-#[gpui::test]
+#[gpui_kit::test]
 fn finds_completed_layout_and_dispatches_click(cx: &mut TestAppContext) {
-    let handle = cx.add_window(|_, _| Example { open: false });
+    let (handle, _) = common::open_window(cx, None, |_, cx| cx.new(|_| Example { open: false }));
     cx.update_window(handle.into(), |_, window, cx| {
         window.draw(cx).clear(cx);
         let trigger = window.find("trigger");
@@ -99,9 +100,11 @@ impl Render for Geometry {
     }
 }
 
-#[gpui::test]
+#[gpui_kit::test]
 fn visibility_and_resize_use_resolved_geometry(cx: &mut TestAppContext) {
-    let handle = cx.open_window(size(px(600.), px(500.)), |_, _| Geometry);
+    let (handle, _) = common::open_window(cx, Some(size(px(600.), px(500.))), |_, cx| {
+        cx.new(|_| Geometry)
+    });
     cx.update_window(handle.into(), |_, window, cx| {
         window.draw(cx).clear(cx);
         assert_eq!(window.find("fill").bounds().size.width, px(600.));
@@ -120,10 +123,10 @@ fn visibility_and_resize_use_resolved_geometry(cx: &mut TestAppContext) {
     .unwrap();
 }
 
-#[gpui::test]
+#[gpui_kit::test]
 fn windows_and_owned_snapshots_are_independent(cx: &mut TestAppContext) {
-    let first = cx.add_window(|_, _| Example { open: false });
-    let second = cx.add_window(|_, _| Example { open: true });
+    let (first, _) = common::open_window(cx, None, |_, cx| cx.new(|_| Example { open: false }));
+    let (second, _) = common::open_window(cx, None, |_, cx| cx.new(|_| Example { open: true }));
     cx.update_window(first.into(), |_, window, cx| {
         window.click("trigger", cx);
         let old = window.find("popup");
@@ -158,10 +161,10 @@ impl Render for Duplicate {
     }
 }
 
-#[gpui::test]
+#[gpui_kit::test]
 #[should_panic(expected = "ambiguous ElementId")]
 fn duplicate_local_ids_fail_clearly(cx: &mut TestAppContext) {
-    let handle = cx.add_window(|_, _| Duplicate);
+    let (handle, _) = common::open_window(cx, None, |_, cx| cx.new(|_| Duplicate));
     cx.update_window(handle.into(), |_, window, cx| {
         window.draw(cx).clear(cx);
         window.try_find("duplicate");
@@ -169,21 +172,42 @@ fn duplicate_local_ids_fail_clearly(cx: &mut TestAppContext) {
     .unwrap();
 }
 
+#[gpui_kit::test]
+fn find_all_returns_every_match_in_scope(cx: &mut TestAppContext) {
+    let (handle, _) = common::open_window(cx, None, |_, cx| cx.new(|_| Duplicate));
+    cx.update_window(handle.into(), |_, window, cx| {
+        window.render_frame(cx);
+        let all = window.find_all("duplicate");
+        assert_eq!(all.len(), 2);
+        assert_ne!(all[0].path(), all[1].path());
+        assert!(all[0].bounds().top() < all[1].bounds().top());
+        let scoped = window.within("two").find_all("duplicate");
+        assert_eq!(scoped.len(), 1);
+        assert_eq!(scoped[0].path(), all[1].path());
+        assert!(window.find_all("missing").is_empty());
+    })
+    .unwrap();
+}
+
 struct Cached {
-    child: gpui::Entity<Example>,
+    child: gpui_kit::Entity<Example>,
 }
 impl Render for Cached {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        div()
-            .size_full()
-            .child(self.child.clone().cached(gpui::StyleRefinement::default()))
+        div().size_full().child(
+            self.child
+                .clone()
+                .cached(gpui_kit::StyleRefinement::default()),
+        )
     }
 }
 
-#[gpui::test]
+#[gpui_kit::test]
 fn cached_paint_keeps_identity_and_accessibility_label(cx: &mut TestAppContext) {
-    let handle = cx.add_window(|_, cx| Cached {
-        child: cx.new(|_| Example { open: true }),
+    let (handle, _) = common::open_window(cx, None, |_, cx| {
+        cx.new(|cx| Cached {
+            child: cx.new(|_| Example { open: true }),
+        })
     });
     cx.update_window(handle.into(), |_, window, cx| {
         for _ in 0..3 {
@@ -219,16 +243,20 @@ impl Render for Covered {
                     .left_0()
                     .size(px(100.))
                     .occlude()
-                    .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation()),
+                    .on_mouse_down(gpui_kit::MouseButton::Left, |_, _, cx| {
+                        cx.stop_propagation()
+                    }),
             )
     }
 }
 
-#[gpui::test]
+#[gpui_kit::test]
 fn click_obeys_occlusion_instead_of_calling_callback(cx: &mut TestAppContext) {
     let clicks = std::rc::Rc::new(std::cell::Cell::new(0));
-    let handle = cx.add_window(|_, _| Covered {
-        clicks: clicks.clone(),
+    let (handle, _) = common::open_window(cx, None, |_, cx| {
+        cx.new(|_| Covered {
+            clicks: clicks.clone(),
+        })
     });
     cx.update_window(handle.into(), |_, window, cx| {
         window.click("covered", cx);
@@ -239,24 +267,24 @@ fn click_obeys_occlusion_instead_of_calling_callback(cx: &mut TestAppContext) {
     assert_eq!(clicks.get(), 0);
 }
 
-#[gpui::test]
+#[gpui_kit::test]
 #[should_panic(expected = "missing ElementId")]
 fn clicking_missing_target_reports_identity(cx: &mut TestAppContext) {
-    let handle = cx.add_window(|_, _| Example { open: false });
+    let (handle, _) = common::open_window(cx, None, |_, cx| cx.new(|_| Example { open: false }));
     cx.update_window(handle.into(), |_, window, cx| window.click("absent", cx))
         .unwrap();
 }
 
-#[gpui::test]
+#[gpui_kit::test]
 #[should_panic(expected = "is not visible")]
 fn clicking_hidden_target_is_rejected(cx: &mut TestAppContext) {
-    let handle = cx.add_window(|_, _| Geometry);
+    let (handle, _) = common::open_window(cx, None, |_, cx| cx.new(|_| Geometry));
     cx.update_window(handle.into(), |_, window, cx| window.click("hidden", cx))
         .unwrap();
 }
 
 struct FocusedView {
-    focus: gpui::FocusHandle,
+    focus: gpui_kit::FocusHandle,
 }
 impl Render for FocusedView {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
@@ -268,12 +296,16 @@ impl Render for FocusedView {
     }
 }
 
-#[gpui::test]
+#[gpui_kit::test]
 fn focus_is_from_the_completed_frame(cx: &mut TestAppContext) {
-    let handle = cx.add_window(|_, cx| FocusedView {
-        focus: cx.focus_handle(),
+    let (handle, handle_content) = common::open_window(cx, None, |_, cx| {
+        cx.new(|cx| FocusedView {
+            focus: cx.focus_handle(),
+        })
     });
-    let focus = handle.update(cx, |view, _, _| view.focus.clone()).unwrap();
+    let focus =
+        common::update_content(handle, &handle_content, cx, |view, _, _| view.focus.clone())
+            .unwrap();
     cx.update_window(handle.into(), |_, window, cx| {
         window.draw(cx).clear(cx);
         assert_eq!(window.find("focus-target").focused(), Some(false));
@@ -286,8 +318,8 @@ fn focus_is_from_the_completed_frame(cx: &mut TestAppContext) {
 }
 
 struct KeyCapture {
-    focus: gpui::FocusHandle,
-    keys: std::rc::Rc<std::cell::RefCell<Vec<gpui::Keystroke>>>,
+    focus: gpui_kit::FocusHandle,
+    keys: std::rc::Rc<std::cell::RefCell<Vec<gpui_kit::Keystroke>>>,
 }
 impl Render for KeyCapture {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
@@ -301,14 +333,18 @@ impl Render for KeyCapture {
     }
 }
 
-#[gpui::test]
+#[gpui_kit::test]
 fn typed_characters_follow_gpui_keystroke_semantics(cx: &mut TestAppContext) {
     let keys = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-    let handle = cx.add_window(|_, cx| KeyCapture {
-        focus: cx.focus_handle(),
-        keys: keys.clone(),
+    let (handle, handle_content) = common::open_window(cx, None, |_, cx| {
+        cx.new(|cx| KeyCapture {
+            focus: cx.focus_handle(),
+            keys: keys.clone(),
+        })
     });
-    let focus = handle.update(cx, |view, _, _| view.focus.clone()).unwrap();
+    let focus =
+        common::update_content(handle, &handle_content, cx, |view, _, _| view.focus.clone())
+            .unwrap();
     cx.update_window(handle.into(), |_, window, cx| {
         window.focus(&focus, cx);
         window.input("Aa- 中🦀", cx);
@@ -347,15 +383,17 @@ impl Render for CenteredLayout {
     }
 }
 
-#[gpui::test]
+#[gpui_kit::test]
 fn resolved_bounds_support_centering_containment_and_overlap_assertions(cx: &mut TestAppContext) {
-    let handle = cx.open_window(size(px(600.), px(400.)), |_, _| CenteredLayout);
+    let (handle, _) = common::open_window(cx, Some(size(px(600.), px(400.))), |_, cx| {
+        cx.new(|_| CenteredLayout)
+    });
     cx.update_window(handle.into(), |_, window, cx| {
         window.draw(cx).clear(cx);
         let dialog = window.find("dialog").bounds();
         let left = window.find("left").bounds();
         let right = window.find("right").bounds();
-        assert_eq!(dialog.center(), gpui::point(px(300.), px(200.)));
+        assert_eq!(dialog.center(), gpui_kit::point(px(300.), px(200.)));
         assert!(left.left() >= dialog.left() && left.right() <= dialog.right());
         assert!(left.top() >= dialog.top() && left.bottom() <= dialog.bottom());
         assert!(!left.intersects(&right));
@@ -364,11 +402,12 @@ fn resolved_bounds_support_centering_containment_and_overlap_assertions(cx: &mut
     .unwrap();
 }
 
-#[gpui::test]
+#[gpui_kit::test]
 fn observations_do_not_cross_app_contexts(cx: &mut TestAppContext) {
     let mut other = cx.new_app();
-    let first = cx.add_window(|_, _| Example { open: false });
-    let second = other.add_window(|_, _| Example { open: true });
+    let (first, _) = common::open_window(cx, None, |_, cx| cx.new(|_| Example { open: false }));
+    let (second, _) =
+        common::open_window(&mut other, None, |_, cx| cx.new(|_| Example { open: true }));
     cx.update_window(first.into(), |_, window, cx| {
         window.draw(cx).clear(cx);
         assert!(window.try_find("popup").is_none());
@@ -405,9 +444,9 @@ impl Render for NativeElement {
     }
 }
 
-#[gpui::test]
+#[gpui_kit::test]
 fn native_elements_require_explicit_observation(cx: &mut TestAppContext) {
-    let handle = cx.add_window(|_, _| NativeElement);
+    let (handle, _) = common::open_window(cx, None, |_, cx| cx.new(|_| NativeElement));
     cx.update_window(handle.into(), |_, window, cx| {
         window.draw(cx).clear(cx);
         assert!(window.try_find("native").is_none());
@@ -422,7 +461,7 @@ impl Render for RepeatedObservation {
             .id("refined")
             .test_support()
             .aria_label("Original")
-            .aria_toggled(gpui::accesskit::Toggled::False)
+            .aria_toggled(gpui_kit::accesskit::Toggled::False)
             .aria_selected(true)
             .test_support()
             .size(px(40.))
@@ -431,7 +470,7 @@ impl Render for RepeatedObservation {
 
 #[gpui_kit::test]
 fn repeated_observation_preserves_native_properties_and_identity(cx: &mut TestAppContext) {
-    let handle = cx.add_window(|_, _| RepeatedObservation);
+    let (handle, _) = common::open_window(cx, None, |_, cx| cx.new(|_| RepeatedObservation));
     cx.update_window(handle.into(), |_, window, cx| {
         window.render_frame(cx);
         let snapshot = window.find("refined");
@@ -450,11 +489,11 @@ impl Render for NativeProperties {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .id("native-properties")
-            .role(gpui::Role::CheckBox)
+            .role(gpui_kit::Role::CheckBox)
             .aria_toggled(if self.checked {
-                gpui::accesskit::Toggled::True
+                gpui_kit::accesskit::Toggled::True
             } else {
-                gpui::accesskit::Toggled::False
+                gpui_kit::accesskit::Toggled::False
             })
             .aria_selected(self.checked)
             .aria_expanded(!self.checked)
@@ -471,11 +510,13 @@ impl Render for NativeProperties {
 
 #[gpui_kit::test]
 fn native_properties_follow_rendered_changes(cx: &mut TestAppContext) {
-    let handle = cx.add_window(|_, _| NativeProperties { checked: false });
+    let (handle, _) = common::open_window(cx, None, |_, cx| {
+        cx.new(|_| NativeProperties { checked: false })
+    });
     cx.update_window(handle.into(), |_, window, cx| {
         window.render_frame(cx);
         let before = window.find("native-properties");
-        assert_eq!(before.role(), Some(gpui::Role::CheckBox));
+        assert_eq!(before.role(), Some(gpui_kit::Role::CheckBox));
         assert_eq!(before.checked(), Some(false));
         assert_eq!(before.indeterminate(), Some(false));
         assert_eq!(before.selected(), Some(false));
@@ -507,7 +548,7 @@ impl Render for UnknownProperties {
 
 #[gpui_kit::test]
 fn missing_native_properties_stay_unknown(cx: &mut TestAppContext) {
-    let handle = cx.add_window(|_, _| UnknownProperties);
+    let (handle, _) = common::open_window(cx, None, |_, cx| cx.new(|_| UnknownProperties));
     cx.update_window(handle.into(), |_, window, cx| {
         window.render_frame(cx);
         let target = window.find("unknown");
@@ -533,7 +574,7 @@ fn missing_native_properties_stay_unknown(cx: &mut TestAppContext) {
 }
 
 struct LateObservation {
-    focus: gpui::FocusHandle,
+    focus: gpui_kit::FocusHandle,
 }
 impl Render for LateObservation {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
@@ -548,8 +589,10 @@ impl Render for LateObservation {
 #[gpui_kit::test]
 #[should_panic(expected = "focus binding was not observed")]
 fn focus_query_diagnoses_observation_after_track_focus(cx: &mut TestAppContext) {
-    let handle = cx.add_window(|_, cx| LateObservation {
-        focus: cx.focus_handle(),
+    let (handle, _) = common::open_window(cx, None, |_, cx| {
+        cx.new(|cx| LateObservation {
+            focus: cx.focus_handle(),
+        })
     });
     cx.update_window(handle.into(), |_, window, cx| {
         window.render_frame(cx);
@@ -561,7 +604,7 @@ fn focus_query_diagnoses_observation_after_track_focus(cx: &mut TestAppContext) 
 }
 
 struct FocusParts {
-    handles: Vec<gpui::FocusHandle>,
+    handles: Vec<gpui_kit::FocusHandle>,
 }
 impl Render for FocusParts {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
@@ -592,12 +635,15 @@ impl Render for FocusParts {
 }
 #[gpui_kit::test]
 fn native_parts_forward_their_public_focus_binding(cx: &mut TestAppContext) {
-    let handle = cx.add_window(|_, cx| FocusParts {
-        handles: (0..4).map(|_| cx.focus_handle()).collect(),
+    let (handle, handle_content) = common::open_window(cx, None, |_, cx| {
+        cx.new(|cx| FocusParts {
+            handles: (0..4).map(|_| cx.focus_handle()).collect(),
+        })
     });
-    let handles = handle
-        .update(cx, |view, _, _| view.handles.clone())
-        .unwrap();
+    let handles = common::update_content(handle, &handle_content, cx, |view, _, _| {
+        view.handles.clone()
+    })
+    .unwrap();
     cx.update_window(handle.into(), |_, window, cx| {
         window.render_frame(cx);
         for (id, focus) in ["disclosure", "row", "cell", "header"]
@@ -614,7 +660,7 @@ fn native_parts_forward_their_public_focus_binding(cx: &mut TestAppContext) {
 }
 
 struct RenamedFocus {
-    focus: gpui::FocusHandle,
+    focus: gpui_kit::FocusHandle,
 }
 impl Render for RenamedFocus {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
@@ -629,10 +675,14 @@ impl Render for RenamedFocus {
 }
 #[gpui_kit::test]
 fn renaming_observed_elements_preserves_focus_binding(cx: &mut TestAppContext) {
-    let handle = cx.add_window(|_, cx| RenamedFocus {
-        focus: cx.focus_handle(),
+    let (handle, handle_content) = common::open_window(cx, None, |_, cx| {
+        cx.new(|cx| RenamedFocus {
+            focus: cx.focus_handle(),
+        })
     });
-    let focus = handle.update(cx, |view, _, _| view.focus.clone()).unwrap();
+    let focus =
+        common::update_content(handle, &handle_content, cx, |view, _, _| view.focus.clone())
+            .unwrap();
     cx.update_window(handle.into(), |_, window, cx| {
         window.render_frame(cx);
         assert_eq!(window.find("final").focused(), Some(false));

@@ -1,6 +1,8 @@
+mod common;
 use gpui_kit::component::{
     Disableable, IndexPath,
     checkbox::Checkbox,
+    radio::{Radio, RadioGroup},
     select::{SearchableVec, Select, SelectEvent, SelectState},
     switch::Switch,
     tab::{Tab, TabBar},
@@ -68,18 +70,20 @@ impl Render for Form {
 #[gpui_kit::test]
 fn checkbox_switch_and_tabs_report_controlled_state(cx: &mut TestAppContext) {
     cx.update(gpui_kit::init);
-    let handle = cx.open_window(size(px(640.), px(600.)), |window, cx| Form {
-        agreed: false,
-        notifications: false,
-        tab: 0,
-        language: cx.new(|cx| {
-            SelectState::new(
-                SearchableVec::new(vec!["Rust", "Go"]),
-                Some(IndexPath::new(0)),
-                window,
-                cx,
-            )
-        }),
+    let (handle, _) = common::open_window(cx, Some(size(px(640.), px(600.))), |window, cx| {
+        cx.new(|cx| Form {
+            agreed: false,
+            notifications: false,
+            tab: 0,
+            language: cx.new(|cx| {
+                SelectState::new(
+                    SearchableVec::new(vec!["Rust", "Go"]),
+                    Some(IndexPath::new(0)),
+                    window,
+                    cx,
+                )
+            }),
+        })
     });
     cx.update_window(handle.into(), |_, window, cx| {
         window.render_frame(cx);
@@ -119,18 +123,20 @@ fn checkbox_switch_and_tabs_report_controlled_state(cx: &mut TestAppContext) {
 #[gpui_kit::test]
 async fn select_reports_value_and_keyboard_open_state(cx: &mut TestAppContext) {
     cx.update(gpui_kit::init);
-    let handle = cx.open_window(size(px(640.), px(600.)), |window, cx| Form {
-        agreed: false,
-        notifications: false,
-        tab: 0,
-        language: cx.new(|cx| {
-            SelectState::new(
-                SearchableVec::new(vec!["Rust", "Go"]),
-                Some(IndexPath::new(0)),
-                window,
-                cx,
-            )
-        }),
+    let (handle, _) = common::open_window(cx, Some(size(px(640.), px(600.))), |window, cx| {
+        cx.new(|cx| Form {
+            agreed: false,
+            notifications: false,
+            tab: 0,
+            language: cx.new(|cx| {
+                SelectState::new(
+                    SearchableVec::new(vec!["Rust", "Go"]),
+                    Some(IndexPath::new(0)),
+                    window,
+                    cx,
+                )
+            }),
+        })
     });
     cx.update_window(handle.into(), |_, window, cx| {
         window.render_frame(cx);
@@ -157,23 +163,27 @@ async fn select_reports_value_and_keyboard_open_state(cx: &mut TestAppContext) {
 fn select_emits_one_dismiss_event_for_each_open_to_closed_transition(cx: &mut TestAppContext) {
     cx.update(gpui_kit::init);
     for searchable in [false, true] {
-        let handle = cx.open_window(size(px(640.), px(600.)), |window, cx| Form {
-            agreed: false,
-            notifications: false,
-            tab: 0,
-            language: cx.new(|cx| {
-                SelectState::new(
-                    SearchableVec::new(vec!["Rust", "Go"]),
-                    Some(IndexPath::new(0)),
-                    window,
-                    cx,
-                )
-                .searchable(searchable)
-            }),
-        });
-        let language = handle
-            .update(cx, |form, _, _| form.language.clone())
-            .unwrap();
+        let (handle, handle_content) =
+            common::open_window(cx, Some(size(px(640.), px(600.))), |window, cx| {
+                cx.new(|cx| Form {
+                    agreed: false,
+                    notifications: false,
+                    tab: 0,
+                    language: cx.new(|cx| {
+                        SelectState::new(
+                            SearchableVec::new(vec!["Rust", "Go"]),
+                            Some(IndexPath::new(0)),
+                            window,
+                            cx,
+                        )
+                        .searchable(searchable)
+                    }),
+                })
+            });
+        let language = common::update_content(handle, &handle_content, cx, |form, _, _| {
+            form.language.clone()
+        })
+        .unwrap();
         cx.update_window(handle.into(), |_, window, _| window.activate_window())
             .unwrap();
         cx.run_until_parked();
@@ -279,9 +289,9 @@ impl Render for HoverHelp {
 #[gpui_kit::test]
 async fn real_hover_card_opens_and_closes_after_pointer_delays(cx: &mut TestAppContext) {
     cx.update(gpui_kit::init);
-    let handle = cx.open_window(size(px(640.), px(480.)), |window, cx| {
+    let (handle, _) = common::open_window(cx, Some(size(px(640.), px(480.))), |_window, cx| {
         let view = cx.new(|_| HoverHelp);
-        gpui_kit::component::Root::new(view, window, cx)
+        view
     });
     cx.update_window(handle.into(), |_, window, cx| {
         window.render_frame(cx);
@@ -317,7 +327,7 @@ impl Render for DisconnectedCheckbox {
 #[gpui_kit::test]
 fn checkbox_click_cannot_fabricate_a_successful_state_change(cx: &mut TestAppContext) {
     cx.update(gpui_kit::init);
-    let handle = cx.add_window(|_, _| DisconnectedCheckbox);
+    let (handle, _) = common::open_window(cx, None, |_, cx| cx.new(|_| DisconnectedCheckbox));
     cx.update_window(handle.into(), |_, window, cx| {
         window.click("agree", cx);
         assert_eq!(window.find("agree").checked(), Some(false));
@@ -340,13 +350,15 @@ impl Render for SearchableLanguageForm {
 
 fn open_searchable_language(cx: &mut TestAppContext) -> AnyWindowHandle {
     cx.update(gpui_kit::init);
-    let handle = cx.open_window(size(px(640.), px(480.)), |window, cx| {
-        let items = SearchableVec::new(vec!["Dutch", "English", "French", "Hungarian"]);
-        SearchableLanguageForm {
-            language: cx.new(|cx| {
-                SelectState::new(items, Some(IndexPath::new(1)), window, cx).searchable(true)
-            }),
-        }
+    let (handle, _) = common::open_window(cx, Some(size(px(640.), px(480.))), |window, cx| {
+        cx.new(|cx| {
+            let items = SearchableVec::new(vec!["Dutch", "English", "French", "Hungarian"]);
+            SearchableLanguageForm {
+                language: cx.new(|cx| {
+                    SelectState::new(items, Some(IndexPath::new(1)), window, cx).searchable(true)
+                }),
+            }
+        })
     });
     handle.into()
 }
@@ -417,4 +429,67 @@ async fn searchable_select_next_open_after_confirm_shows_all_items(cx: &mut Test
     press_language_keys(cx, handle, &["up", "enter"]);
     wait_select_closed(cx, handle).await;
     assert_eq!(select_value(cx, handle).as_deref(), Some("French"));
+}
+
+struct Plans {
+    group_disabled: bool,
+    selected: Option<usize>,
+}
+impl Render for Plans {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        RadioGroup::vertical("plan")
+            .disabled(self.group_disabled)
+            .selected_index(self.selected)
+            .child(Radio::new("free").label("Free"))
+            .child(Radio::new("pro").label("Pro").disabled(true))
+            .on_click(cx.listener(|this, ix: &usize, _, cx| {
+                this.selected = Some(*ix);
+                cx.notify();
+            }))
+    }
+}
+
+#[gpui_kit::test]
+fn radio_group_keeps_a_disabled_item_disabled(cx: &mut TestAppContext) {
+    cx.update(gpui_kit::init);
+    let (window, view) = common::open_window(cx, Some(size(px(320.), px(240.))), |_, cx| {
+        cx.new(|_| Plans {
+            group_disabled: false,
+            selected: None,
+        })
+    });
+    let selected = |cx: &mut TestAppContext| view.read_with(cx, |view, _| view.selected);
+
+    cx.update_window(window.into(), |_, window, cx| {
+        window.within("plan").click(1usize, cx)
+    })
+    .unwrap();
+    assert_eq!(
+        selected(cx),
+        None,
+        "a disabled item inside an enabled group"
+    );
+
+    cx.update_window(window.into(), |_, window, cx| {
+        window.within("plan").click(0usize, cx)
+    })
+    .unwrap();
+    assert_eq!(selected(cx), Some(0));
+
+    // A disabled group still disables every item.
+    view.update(cx, |view, cx| {
+        view.group_disabled = true;
+        view.selected = None;
+        cx.notify();
+    });
+    cx.update_window(window.into(), |_, window, cx| {
+        window.render_frame(cx);
+        window.within("plan").click(0usize, cx);
+    })
+    .unwrap();
+    assert_eq!(
+        selected(cx),
+        None,
+        "an enabled item inside a disabled group"
+    );
 }

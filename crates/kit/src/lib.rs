@@ -33,14 +33,14 @@
 //! fn main() {
 //!     gpui_kit::application().run(|cx| {
 //!         gpui_kit::init(cx);
-//!         cx.spawn(async move |cx| {
-//!             cx.open_window(WindowOptions::default(), |_, cx| cx.new(|_| Hello))
-//!                 .expect("failed to open window");
-//!         })
-//!         .detach();
+//!         gpui_kit::open_window(WindowOptions::default(), cx, |_, cx| cx.new(|_| Hello))
+//!             .expect("failed to open window");
 //!     });
 //! }
 //! ```
+//!
+//! Enable `gpui-fast` to select GPUI Fast for the core, platform, and enabled
+//! layers without changing imports. Upstream remains the default backend.
 //!
 //! See [`component`] for the same program with the styled component library.
 
@@ -88,14 +88,33 @@ macro_rules! actions {
 // A future switch to official GPUI crates is an internal dependency migration,
 // not a reason to steer Kit users toward gpui:: paths or require import changes.
 // Keep the existing gpui namespace re-export hidden for source compatibility;
-// it is not the recommended application API.
+// it is not the recommended application API. It names this crate rather than
+// the GPUI crate: `gpui_kit::gpui::Window` is still GPUI's `Window` through the
+// glob below, and applications can alias the Kit as `gpui`
+// (`extern crate gpui_kit as gpui;`) so GPUI macro output resolves through the
+// Kit whichever GPUI it is built on. Pointing this at the GPUI crate would make
+// that alias ambiguous (E0659) wherever `gpui_kit::*` is glob-imported.
 //
 // With test-support, the glob below includes GPUI's test macro. Test modules
 // should import their Kit types explicitly to avoid shadowing Rust's #[test].
+#[cfg(not(feature = "gpui-fast"))]
 pub use ::gpui::*;
+#[cfg(feature = "gpui-fast")]
+pub use ::gpui_fast::*;
+
+// Preserve Kit-aware macro paths when the engine is Fast.
+#[cfg(all(feature = "gpui-fast", any(feature = "inspector", debug_assertions)))]
+pub use gpui_macros::derive_inspector_reflection;
+#[cfg(feature = "gpui-fast")]
+pub use gpui_macros::{
+    Action, AppContext, IntoElement, Render, VisualContext, bench, border_style_methods,
+    box_shadow_style_methods, cursor_style_methods, margin_style_methods, overflow_style_methods,
+    padding_style_methods, position_style_methods, property_test, register_action, style_helpers,
+    test, visibility_style_methods,
+};
 
 #[doc(hidden)]
-pub use ::gpui;
+pub use crate as gpui;
 
 /// UI integration testing: render real components in headless windows, dispatch
 /// pointer and keyboard events, and assert state, focus, layout and callbacks.
@@ -104,9 +123,19 @@ pub use ::gpui;
 pub mod test;
 
 pub use ::gpui_base as base;
-#[cfg(not(any(target_os = "ios", target_os = "android")))]
+#[cfg(all(
+    not(any(target_os = "ios", target_os = "android")),
+    feature = "gpui-fast"
+))]
+pub use ::gpui_fast_platform as platform;
+#[cfg(all(target_family = "wasm", feature = "gpui-fast"))]
+pub use ::gpui_fast_web as web;
+#[cfg(all(
+    not(any(target_os = "ios", target_os = "android")),
+    not(feature = "gpui-fast")
+))]
 pub use ::gpui_platform as platform;
-#[cfg(target_family = "wasm")]
+#[cfg(all(target_family = "wasm", not(feature = "gpui-fast")))]
 pub use ::gpui_web as web;
 pub use gpui_base::is_mobile;
 
@@ -114,7 +143,6 @@ pub use gpui_base::is_mobile;
 ///
 /// ```no_run
 /// use gpui_kit::component::button::*;
-/// use gpui_kit::component::Root;
 /// use gpui_kit::*;
 ///
 /// struct Hello;
@@ -128,25 +156,43 @@ pub use gpui_base::is_mobile;
 /// fn main() {
 ///     gpui_kit::application().run(|cx| {
 ///         gpui_kit::init(cx);
-///         cx.spawn(async move |cx| {
-///             cx.open_window(WindowOptions::default(), |window, cx| {
-///                 let view = cx.new(|_| Hello);
-///                 cx.new(|cx| Root::new(view, window, cx))
-///             })
+///         gpui_kit::open_window(WindowOptions::default(), cx, |_, cx| cx.new(|_| Hello))
 ///             .expect("failed to open window");
-///         })
-///         .detach();
 ///     });
 /// }
 /// ```
 #[cfg(feature = "component")]
 pub use ::gpui_component as component;
+
 #[cfg(feature = "assets")]
 pub use ::gpui_kit_assets as assets;
 
+/// Open a window with a Base Root and return the window and application content.
+/// Applications own quit/close actions and confirmation flows.
+/// Call [`init`] before opening application windows.
+/// The builder returns application content, not another Root.
+///
+/// In an async context, call this inside `cx.update`.
+pub fn open_window<V: Render>(
+    options: WindowOptions,
+    cx: &mut App,
+    build: impl FnOnce(&mut Window, &mut App) -> Entity<V>,
+) -> Result<(AnyWindowHandle, Entity<V>)> {
+    let mut built = None;
+    let window = cx.open_window(options, |window, cx| {
+        let view = build(window, cx);
+        built = Some(view.clone());
+        cx.new(|cx| base::Root::new(view, window, cx))
+    })?;
+    Ok((
+        window.into(),
+        built.expect("open_window ran its build closure"),
+    ))
+}
+
 // Mobile applications provide their platform with `Application::with_platform`.
 #[cfg(not(any(target_os = "ios", target_os = "android")))]
-pub use ::gpui_platform::application;
+pub use platform::application;
 
 /// Initializes every enabled layer. Call it once, before using anything else.
 ///

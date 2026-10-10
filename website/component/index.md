@@ -1,6 +1,6 @@
 ---
 title: Components
-description: Browse more than 60 production-ready Rust UI components for forms, navigation, data, feedback, and desktop application layouts.
+description: Browse 75+ production-ready Rust UI components and primitives for forms, navigation, data, feedback, editing, and application layouts.
 order: 2
 collapsed: false
 ---
@@ -50,7 +50,9 @@ collapsed: false
 - [Combobox](combobox) - Searchable single-select or multi-select dropdown.
 - [NumberInput](number-input) - Numeric input with increment/decrement
 - [DatePicker](date-picker) - Date selection with calendar
+- [TimeField](time-field) - Segmented time-of-day input
 - [OtpInput](otp-input) - One-time password input
+- [Speech](speech) - Dictation through the system recognizer or your own
 - [ColorPicker](color-picker) - Color selection interface
 - [Form](form) - Form container and layout
 
@@ -68,9 +70,11 @@ collapsed: false
 - [Sheet](sheet) - Slide-in panel from edges
 - [Sidebar](sidebar) - Navigation sidebar
 - [StatusBar](status-bar) - Bottom status bar with left/center/right regions
+- [Toolbar](toolbar) - Top toolbar with left/right regions and sizes
 
 ### Advanced Components
 
+- [Diff](./diff.md) - Readonly patch display for code review and change previews
 - [Calendar](calendar) - Calendar display and navigation
 - [Carousel](carousel) - Browse through a set of related items
 - [Command](command) - Command palette for search and quick actions

@@ -16,35 +16,9 @@ use gpui_kit::component::WindowExt;
 
 ## 用法
 
-### 在应用根视图中渲染 Dialog 图层
+### 对话框的渲染位置
 
-如果你要展示对话框，需要在应用根视图中渲染 dialog layer。通常这会放在主应用结构体的 `render` 方法里。
-
-[Root::render_dialog_layer](https://docs.rs/gpui-component/latest/gpui_component/struct.Root.html#method.render_dialog_layer) 会把当前激活的对话框渲染在应用内容之上。
-
-```rust
-use gpui_kit::component::TitleBar;
-
-struct MyApp {
-    view: AnyView,
-}
-
-impl Render for MyApp {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let dialog_layer = Root::render_dialog_layer(window, cx);
-
-        div()
-            .size_full()
-            .child(
-                v_flex()
-                    .size_full()
-                    .child(TitleBar::new())
-                    .child(div().flex_1().overflow_hidden().child(self.view.clone())),
-            )
-            .children(dialog_layer)
-    }
-}
-```
+窗口的 [Root](./root.md) 会自动挂载并渲染对话框层。使用 `gpui_kit::open_window` 打开窗口，或将应用视图包裹在 `Root::new` 中即可，无需在视图中手动渲染浮层。
 
 ### 基础对话框
 
@@ -54,6 +28,27 @@ window.open_dialog(cx, |dialog, _, _| {
         .title("Welcome")
         .child("This is a dialog dialog.")
 })
+```
+
+### 构建器生命周期与初始焦点
+
+`open_dialog` 的构建器可能在对话框层重新构建时再次执行。它不是只执行一次的构造函数，也不保证在每个显示帧执行。`open_alert_dialog`、`open_sheet` 和 `open_sheet_at` 遵循相同的构建契约。构建器应保持轻量且幂等；持久实体应在打开前创建，并将其句柄传入构建器，以便重新构建时保留编辑状态。
+
+`open_dialog` 会先将焦点交给对话框外壳。若需要设置内容的初始焦点，应在构建器内使用一次性标记，每次打开时单独创建。在后续重新构建时无条件设置焦点，会抢走其他控件或嵌套对话框的焦点。
+
+```rust
+use std::cell::Cell;
+use gpui_kit::{AppContext as _, Focusable as _};
+use gpui_kit::component::{WindowExt as _, input::{Input, InputState}};
+
+let input = cx.new(|cx| InputState::new(window, cx).placeholder("URL"));
+let initial_focus = Cell::new(true);
+window.open_dialog(cx, move |dialog, window, cx| {
+    if initial_focus.replace(false) {
+        input.focus_handle(cx).focus(window, cx);
+    }
+    dialog.title("导入").child(Input::new(&input))
+});
 ```
 
 ### 表单对话框
@@ -134,6 +129,20 @@ window.open_dialog(cx, |dialog, _, _| {
         .child("Dialog content")
 })
 ```
+
+### 入场动画
+
+`Dialog` 和 `AlertDialog` 共用 `DialogEntrance`。默认的 `SlideDown` 保留从窗口顶部滑入的效果；`Fade` 在最终位置淡入；`FadeSlide` 淡入时按主题定义的短移动距离向下移动；`None` 立即显示弹窗和遮罩。
+
+```rust
+use gpui_kit::component::dialog::DialogEntrance;
+
+window.open_dialog(cx, |dialog, _, _| {
+    dialog.title("设置").entrance(DialogEntrance::FadeSlide)
+});
+```
+
+`Fade` 和 `FadeSlide` 使用主题的普通动画时长及入场缓动。`FadeSlide` 在完成窗口边界定位后施加偏移，移动距离不会超过弹窗上方的可用空间。启用 reduced motion 时，所有方式都会立即显示最终状态。所有方式均保持立即关闭。
 
 ### 操作按钮
 
